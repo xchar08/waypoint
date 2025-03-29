@@ -26,8 +26,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   LatLng? _selectedLocation;
   String _searchQuery = '';
   bool _showFutureEventsOnly = false;
-  bool _showFriendsEventsOnly = false; // New filter for friends' events
+  bool _showFriendsEventsOnly = false;
   List<String> _friendsList = [];
+  bool _isLoadingFriends = true;
+  String? _friendsError;
 
   @override
   void initState() {
@@ -37,68 +39,96 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       vsync: this,
     )..repeat(reverse: true);
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-    _loadFriendsList();
-    _showTour();
+    _loadFriendsList(); // Load friends list asynchronously
+    _showTour(); // Show tour asynchronously
   }
 
   Future<void> _loadFriendsList() async {
-    final userId = _authService.getUserId();
-    if (userId != null) {
-      final friends = await _userService.getFriendsList(userId);
-      setState(() {
-        _friendsList = friends;
-      });
+    setState(() {
+      _isLoadingFriends = true;
+      _friendsError = null;
+    });
+    try {
+      final userId = _authService.getUserId();
+      if (userId != null) {
+        final friends = await _userService.getFriendsList(userId);
+        if (mounted) {
+          setState(() {
+            _friendsList = friends;
+            _isLoadingFriends = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _friendsError = 'User not authenticated';
+            _isLoadingFriends = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _friendsError = 'Failed to load friends: $e';
+          _isLoadingFriends = false;
+        });
+      }
     }
   }
 
   Future<void> _showTour() async {
-    final userId = _authService.getUserId();
-    if (userId == null) return;
+    try {
+      final userId = _authService.getUserId();
+      if (userId == null) return;
 
-    final userEmail = await _userService.getUserEmail(userId);
-    if (userEmail == null) return;
+      final userEmail = await _userService.getUserEmail(userId);
+      if (userEmail == null) return;
 
-    final city = await _userService.getUserCity(userEmail);
-    if (city == null) return;
+      final city = await _userService.getUserCity(userEmail);
+      if (city == null) return;
 
-    final popularEvents = await _eventService.getPopularEventsInCity(city);
-    if (popularEvents.isEmpty) return;
+      final popularEvents = await _eventService.getPopularEventsInCity(city);
+      if (popularEvents.isEmpty || !mounted) return;
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Popular Events in $city'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: popularEvents.length,
-            itemBuilder: (context, index) {
-              final event = popularEvents[index];
-              return ListTile(
-                title: Text(event.activity),
-                subtitle: Text('Participants: ${event.participants.length}'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EventDetailsScreen(event: event),
-                    ),
-                  );
-                },
-              );
-            },
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Popular Events in $city'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: popularEvents.length,
+              itemBuilder: (context, index) {
+                final event = popularEvents[index];
+                return ListTile(
+                  title: Text(event.activity),
+                  subtitle: Text('Participants: ${event.participants.length}'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EventDetailsScreen(event: event),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+      );
+    } catch (e) {
+      print('Error showing tour: $e');
+      // Optionally show a SnackBar or ignore silently
+    }
   }
 
   @override
@@ -115,7 +145,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         actions: [
           IconButton(
             icon: const Icon(Icons.person),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen())),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ProfileScreen()),
+            ),
           ),
         ],
       ),
@@ -196,7 +229,19 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           return const Center(child: CircularProgressIndicator());
                         }
                         if (snapshot.hasError) {
-                          return const Center(child: Text('Error loading events'));
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('Failed to load events: ${snapshot.error}'),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () => setState(() {}), // Retry by rebuilding
+                                  child: const Text('Retry'),
+                                ),
+                              ],
+                            ),
+                          );
                         }
                         final events = snapshot.data ?? [];
                         // Apply search and filters
@@ -209,6 +254,14 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                               _friendsList.contains(event.organizerId);
                           return matchesSearch && matchesDate && matchesFriends;
                         }).toList();
+
+                        if (_isLoadingFriends) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (_friendsError != null) {
+                          return Center(child: Text(_friendsError!));
+                        }
+
                         List<Marker> markers = filteredEvents
                             .map((event) => Marker(
                                   point: event.location,
@@ -216,13 +269,16 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                                   height: 40,
                                   child: GestureDetector(
                                     onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) => EventDetailsScreen(event: event))),
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => EventDetailsScreen(event: event),
+                                      ),
+                                    ),
                                     child: AnimatedMarker(event: event, animation: _animation),
                                   ),
                                 ))
                             .toList();
+
                         if (_selectedLocation != null) {
                           markers.add(
                             Marker(
@@ -237,6 +293,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                             ),
                           );
                         }
+
                         return MarkerLayer(markers: markers);
                       },
                     ),
@@ -256,9 +313,11 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                             ),
                           ),
                         ).then((_) {
-                          setState(() {
-                            _selectedLocation = null;
-                          });
+                          if (mounted) {
+                            setState(() {
+                              _selectedLocation = null;
+                            });
+                          }
                         });
                       },
                       child: const Icon(Icons.add),
