@@ -8,6 +8,9 @@ class EventModel {
   final DateTime startTime;
   final DateTime endTime;
   final LatLng location;
+  final String city; // User-entered or edited city
+  final String? fetchedCity; // City fetched from geocoding (for reference)
+  final String? address; // Fetched address
   final int maxParticipants;
   final String organizerId;
   final List<String> participants;
@@ -19,6 +22,9 @@ class EventModel {
     required this.startTime,
     required this.endTime,
     required this.location,
+    required this.city,
+    this.fetchedCity,
+    this.address,
     required this.maxParticipants,
     required this.organizerId,
     required this.participants,
@@ -30,9 +36,15 @@ class EventModel {
       eventId: doc.id,
       activity: data['activity'] ?? '',
       description: data['description'] ?? '',
-      startTime: DateTime.parse(data['startTime']),
-      endTime: DateTime.parse(data['endTime']),
-      location: LatLng(data['location']['latitude'], data['location']['longitude']),
+      startTime: (data['startTime'] as Timestamp).toDate(),
+      endTime: (data['endTime'] as Timestamp).toDate(),
+      location: LatLng(
+        data['location']['latitude'] ?? 0.0,
+        data['location']['longitude'] ?? 0.0,
+      ),
+      city: data['city'] ?? '',
+      fetchedCity: data['fetchedCity'],
+      address: data['address'],
       maxParticipants: data['maxParticipants'] ?? 0,
       organizerId: data['organizerId'] ?? '',
       participants: List<String>.from(data['participants'] ?? []),
@@ -43,9 +55,15 @@ class EventModel {
     return {
       'activity': activity,
       'description': description,
-      'startTime': startTime.toIso8601String(),
-      'endTime': endTime.toIso8601String(),
-      'location': {'latitude': location.latitude, 'longitude': location.longitude},
+      'startTime': Timestamp.fromDate(startTime),
+      'endTime': Timestamp.fromDate(endTime),
+      'location': {
+        'latitude': location.latitude,
+        'longitude': location.longitude,
+      },
+      'city': city,
+      'fetchedCity': fetchedCity,
+      'address': address,
       'maxParticipants': maxParticipants,
       'organizerId': organizerId,
       'participants': participants,

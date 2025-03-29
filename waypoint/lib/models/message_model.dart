@@ -5,7 +5,7 @@ class MessageModel {
   final String eventId;
   final String senderId;
   final String content;
-  final DateTime timestamp;
+  final DateTime timestamp; // Add timestamp field
 
   MessageModel({
     required this.messageId,
@@ -22,7 +22,7 @@ class MessageModel {
       eventId: data['eventId'] ?? '',
       senderId: data['senderId'] ?? '',
       content: data['content'] ?? '',
-      timestamp: DateTime.parse(data['timestamp']),
+      timestamp: (data['timestamp'] as Timestamp).toDate(),
     );
   }
 
@@ -31,7 +31,7 @@ class MessageModel {
       'eventId': eventId,
       'senderId': senderId,
       'content': content,
-      'timestamp': timestamp.toIso8601String(),
+      'timestamp': Timestamp.fromDate(timestamp),
     };
   }
 }

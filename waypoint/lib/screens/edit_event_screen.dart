@@ -1,43 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/event_model.dart';
-import '../services/auth_service.dart';
 import '../services/event_service.dart';
 import '../services/geocoding_service.dart';
-import 'login_screen.dart';
 
-class CreateEventScreen extends StatefulWidget {
-  final LatLng? initialLocation;
+class EditEventScreen extends StatefulWidget {
+  final EventModel event;
 
-  const CreateEventScreen({super.key, this.initialLocation});
+  const EditEventScreen({super.key, required this.event});
 
   @override
-  _CreateEventScreenState createState() => _CreateEventScreenState();
+  _EditEventScreenState createState() => _EditEventScreenState();
 }
 
-class _CreateEventScreenState extends State<CreateEventScreen> {
+class _EditEventScreenState extends State<EditEventScreen> {
   final _formKey = GlobalKey<FormState>();
   final EventService _eventService = EventService();
-  final AuthService _authService = AuthService();
   final GeocodingService _geocodingService = GeocodingService();
-  String _activity = '';
-  String _description = '';
-  DateTime _startTime = DateTime.now();
-  DateTime _endTime = DateTime.now().add(const Duration(hours: 1));
-  int _maxParticipants = 10;
+  late String _activity;
+  late String _description;
+  late DateTime _startTime;
+  late DateTime _endTime;
+  late int _maxParticipants;
   late LatLng _selectedLocation;
-  String _city = '';
-  String? _fetchedCity; // Store the fetched city
-  String? _address; // Store the fetched address
+  late String _city;
+  String? _fetchedCity;
+  String? _address;
   bool _isLoading = false;
   bool _isGeocodingLoading = true;
-  final TextEditingController _cityController = TextEditingController();
+  late TextEditingController _cityController;
 
   @override
   void initState() {
     super.initState();
-    _selectedLocation = widget.initialLocation ?? const LatLng(32.7357, -97.1081);
-    _fetchAddressAndCity();
+    _activity = widget.event.activity;
+    _description = widget.event.description;
+    _startTime = widget.event.startTime;
+    _endTime = widget.event.endTime;
+    _maxParticipants = widget.event.maxParticipants;
+    _selectedLocation = widget.event.location;
+    _city = widget.event.city;
+    _fetchedCity = widget.event.fetchedCity;
+    _address = widget.event.address;
+    _cityController = TextEditingController(text: _city);
+    if (_address == null) {
+      _fetchAddressAndCity();
+    } else {
+      _isGeocodingLoading = false;
+    }
   }
 
   Future<void> _fetchAddressAndCity() async {
@@ -56,8 +66,10 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     setState(() {
       _address = result['address'];
       _fetchedCity = result['city'];
-      _city = _fetchedCity ?? '';
-      _cityController.text = _city;
+      if (_city.isEmpty) {
+        _city = _fetchedCity ?? '';
+        _cityController.text = _city;
+      }
       _isGeocodingLoading = false;
     });
   }
@@ -72,7 +84,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Event'),
+        title: const Text('Edit Event'),
       ),
       body: Stack(
         children: [
@@ -83,11 +95,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
               child: ListView(
                 children: [
                   TextFormField(
+                    initialValue: _activity,
                     decoration: const InputDecoration(labelText: 'Activity'),
                     validator: (value) => value!.isEmpty ? 'Enter an activity' : null,
                     onSaved: (value) => _activity = value!,
                   ),
                   TextFormField(
+                    initialValue: _description,
                     decoration: const InputDecoration(labelText: 'Description'),
                     validator: (value) => value!.isEmpty ? 'Enter a description' : null,
                     onSaved: (value) => _description = value!,
@@ -119,6 +133,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     },
                   ),
                   TextFormField(
+                    initialValue: _maxParticipants.toString(),
                     decoration: const InputDecoration(labelText: 'Max Participants'),
                     keyboardType: TextInputType.number,
                     validator: (value) => value!.isEmpty ? 'Enter a number' : null,
@@ -137,37 +152,29 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                                 );
                                 return;
                               }
-                              final userId = _authService.getUserId();
-                              if (userId == null) {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => LoginScreen()),
-                                );
-                                return;
-                              }
                               setState(() {
                                 _isLoading = true;
                               });
                               try {
-                                final event = EventModel(
-                                  eventId: DateTime.now().millisecondsSinceEpoch.toString(),
+                                final updatedEvent = EventModel(
+                                  eventId: widget.event.eventId,
                                   activity: _activity,
                                   description: _description,
                                   startTime: _startTime,
                                   endTime: _endTime,
                                   location: _selectedLocation,
                                   maxParticipants: _maxParticipants,
-                                  organizerId: userId,
-                                  participants: [],
+                                  organizerId: widget.event.organizerId,
+                                  participants: widget.event.participants,
                                   city: _city,
                                   fetchedCity: _fetchedCity,
                                   address: _address,
                                 );
-                                await _eventService.createEvent(event);
-                                Navigator.pop(context);
+                                await _eventService.updateEvent(updatedEvent);
+                                Navigator.pop(context, updatedEvent);
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error creating event: $e')),
+                                  SnackBar(content: Text('Error updating event: $e')),
                                 );
                               } finally {
                                 setState(() {
@@ -178,7 +185,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                           },
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Create Event'),
+                        : const Text('Save Changes'),
                   ),
                 ],
               ),
