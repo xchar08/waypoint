@@ -12,10 +12,9 @@ dependencies:
   firebase_auth: ^5.5.1
   cloud_firestore: ^5.6.5
   flutter_map: ^8.1.1
-  latlong2: ^0.9.1    # Updated to latest compatible version
+  latlong2: ^0.9.1
   shared_preferences: ^2.2.0
   firebase_vertexai: ^1.4.0
-  flutter_map_tile_caching: ^10.1.1  # Updated to suggested version
   geocoding: ^3.0.0
   flutter_dotenv: ^5.1.0
 

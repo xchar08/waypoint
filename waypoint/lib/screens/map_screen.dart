@@ -49,30 +49,40 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       _isLoadingFriends = true;
       _friendsError = null;
     });
-    try {
-      final userId = _authService.getUserId();
-      if (userId != null) {
-        final friends = await _userService.getFriendsList(userId);
-        if (mounted) {
-          setState(() {
-            _friendsList = friends;
-            _isLoadingFriends = false;
-          });
+    const maxRetries = 3;
+    for (var attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        final userId = _authService.getUserId();
+        if (userId != null) {
+          final friends = await _userService.getFriendsList(userId);
+          if (mounted) {
+            setState(() {
+              _friendsList = friends;
+              _isLoadingFriends = false;
+            });
+          }
+          return; // Success, exit loop
+        } else {
+          if (mounted) {
+            setState(() {
+              _friendsError = 'User not authenticated';
+              _isLoadingFriends = false;
+            });
+          }
+          return;
         }
-      } else {
-        if (mounted) {
-          setState(() {
-            _friendsError = 'User not authenticated';
-            _isLoadingFriends = false;
-          });
+      } catch (e) {
+        print('Attempt $attempt failed: $e');
+        if (attempt == maxRetries) {
+          if (mounted) {
+            setState(() {
+              _friendsError = 'Failed to load friends after $maxRetries attempts: $e';
+              _isLoadingFriends = false;
+            });
+          }
+        } else {
+          await Future.delayed(Duration(seconds: attempt * 2)); // Exponential backoff
         }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _friendsError = 'Failed to load friends: $e';
-          _isLoadingFriends = false;
-        });
       }
     }
   }
@@ -208,7 +218,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 FlutterMap(
                   options: MapOptions(
                     initialCenter: const LatLng(32.7357, -97.1081),
-                    initialZoom: 13.0,
+                    initialZoom: 10.0, // Lower zoom for better performance
                     onTap: (tapPosition, point) {
                       setState(() {
                         _selectedLocation = point;
@@ -218,9 +228,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      subdomains: const ['a', 'b', 'c'],
-                      tileProvider: NetworkTileProvider(), // Use default network provider
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', // Direct URL, no subdomains
+                      tileProvider: NetworkTileProvider(), // Removed 'const'
                       errorTileCallback: (tile, error, stackTrace) {
                         print('Tile failed to load: $error');
                       },

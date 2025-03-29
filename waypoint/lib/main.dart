@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Add this import
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'screens/login_screen.dart';
 import 'screens/map_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -21,9 +21,13 @@ Future<void> main() async {
   }
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+  }
 
   // Enable Firestore offline persistence
   FirebaseFirestore.instance.settings = const Settings(
@@ -52,17 +56,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if ((dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '').isEmpty) {
-      return MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Text(
-              'Error: Google Maps API key not found. Please ensure the .env file is correctly set up.',
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      );
+    // Check for Google Maps API key (optional, since flutter_map uses OSM)
+    final googleMapsApiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
+    if (googleMapsApiKey.isEmpty) {
+      print('Warning: GOOGLE_MAPS_API_KEY not found in .env. This app uses OpenStreetMap, so it may not be required.');
     }
 
     return MaterialApp(
@@ -75,7 +72,9 @@ class MyApp extends StatelessWidget {
             return const SplashScreen();
           }
           if (snapshot.hasError) {
-            return const Center(child: Text('Error loading app'));
+            return const Scaffold(
+              body: Center(child: Text('Error loading app')),
+            );
           }
           final isFirstTime = snapshot.data ?? true;
           if (isFirstTime) {
@@ -88,7 +87,9 @@ class MyApp extends StatelessWidget {
                 return const SplashScreen();
               }
               if (authSnapshot.hasError) {
-                return const Center(child: Text('Error checking auth state'));
+                return const Scaffold(
+                  body: Center(child: Text('Error checking auth state')),
+                );
               }
               final isAuthenticated = authSnapshot.data ?? false;
               return isAuthenticated ? MapScreen() : LoginScreen();
