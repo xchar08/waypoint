@@ -31,22 +31,39 @@ class EventModel {
   });
 
   factory EventModel.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    
+    // Helper function to parse Timestamp or String into DateTime
+    DateTime parseDateTime(dynamic value, {required String fieldName}) {
+      try {
+        if (value is Timestamp) {
+          return value.toDate();
+        } else if (value is String) {
+          return DateTime.parse(value); // Parse ISO 8601 string
+        }
+        print('Invalid $fieldName format: $value. Using current time as fallback.');
+        return DateTime.now(); // Fallback for invalid data
+      } catch (e) {
+        print('Error parsing $fieldName: $e. Using current time as fallback.');
+        return DateTime.now();
+      }
+    }
+
     return EventModel(
       eventId: doc.id,
-      activity: data['activity'] ?? '',
-      description: data['description'] ?? '',
-      startTime: (data['startTime'] as Timestamp).toDate(),
-      endTime: (data['endTime'] as Timestamp).toDate(),
+      activity: data['activity'] as String? ?? '',
+      description: data['description'] as String? ?? '',
+      startTime: parseDateTime(data['startTime'], fieldName: 'startTime'),
+      endTime: parseDateTime(data['endTime'], fieldName: 'endTime'),
       location: LatLng(
-        data['location']['latitude'] ?? 0.0,
-        data['location']['longitude'] ?? 0.0,
+        (data['location']?['latitude'] as num?)?.toDouble() ?? 0.0,
+        (data['location']?['longitude'] as num?)?.toDouble() ?? 0.0,
       ),
-      city: data['city'] ?? '',
-      fetchedCity: data['fetchedCity'],
-      address: data['address'],
-      maxParticipants: data['maxParticipants'] ?? 0,
-      organizerId: data['organizerId'] ?? '',
+      city: data['city'] as String? ?? '',
+      fetchedCity: data['fetchedCity'] as String?,
+      address: data['address'] as String?,
+      maxParticipants: data['maxParticipants'] as int? ?? 0,
+      organizerId: data['organizerId'] as String? ?? '',
       participants: List<String>.from(data['participants'] ?? []),
     );
   }
