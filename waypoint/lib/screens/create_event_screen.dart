@@ -27,8 +27,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   int _maxParticipants = 10;
   late LatLng _selectedLocation;
   String _city = '';
-  String? _fetchedCity; // Store the fetched city
-  String? _address; // Store the fetched address
+  String? _fetchedCity;
+  String? _address;
   bool _isLoading = false;
   bool _isGeocodingLoading = true;
   final TextEditingController _cityController = TextEditingController();
@@ -41,25 +41,39 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Future<void> _fetchAddressAndCity() async {
+    if (!mounted) return; // Prevent action if already disposed
     setState(() {
       _isGeocodingLoading = true;
     });
-    final result = await _geocodingService.getAddressAndCityFromLatLng(
-      _selectedLocation.latitude,
-      _selectedLocation.longitude,
-      language: 'en',
-      region: 'us',
-      resultType: 'street_address',
-      locationType: 'ROOFTOP',
-      components: 'country:US',
-    );
-    setState(() {
-      _address = result['address'];
-      _fetchedCity = result['city'];
-      _city = _fetchedCity ?? '';
-      _cityController.text = _city;
-      _isGeocodingLoading = false;
-    });
+    try {
+      final result = await _geocodingService.getAddressAndCityFromLatLng(
+        _selectedLocation.latitude,
+        _selectedLocation.longitude,
+        language: 'en',
+        region: 'us',
+        resultType: 'street_address',
+        locationType: 'ROOFTOP',
+        components: 'country:US',
+      );
+      if (!mounted) return; // Check before updating state
+      setState(() {
+        _address = result['address'];
+        _fetchedCity = result['city'];
+        _city = _fetchedCity ?? '';
+        _cityController.text = _city;
+        _isGeocodingLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return; // Prevent setState if disposed
+      print('Error fetching address: $e');
+      setState(() {
+        _address = 'Unknown address';
+        _fetchedCity = null;
+        _city = '';
+        _cityController.text = '';
+        _isGeocodingLoading = false;
+      });
+    }
   }
 
   @override
@@ -108,14 +122,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     title: Text('Start Time: ${_startTime.toString()}'),
                     onTap: () async {
                       final picked = await showDateTimePicker(context, _startTime);
-                      if (picked != null) setState(() => _startTime = picked);
+                      if (picked != null && mounted) {
+                        setState(() => _startTime = picked);
+                      }
                     },
                   ),
                   ListTile(
                     title: Text('End Time: ${_endTime.toString()}'),
                     onTap: () async {
                       final picked = await showDateTimePicker(context, _endTime);
-                      if (picked != null) setState(() => _endTime = picked);
+                      if (picked != null && mounted) {
+                        setState(() => _endTime = picked);
+                      }
                     },
                   ),
                   TextFormField(
@@ -145,6 +163,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                                 );
                                 return;
                               }
+                              if (!mounted) return; // Prevent action if disposed
                               setState(() {
                                 _isLoading = true;
                               });
@@ -164,15 +183,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                                   address: _address,
                                 );
                                 await _eventService.createEvent(event);
-                                Navigator.pop(context);
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                }
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error creating event: $e')),
-                                );
-                              } finally {
-                                setState(() {
-                                  _isLoading = false;
-                                });
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error creating event: $e')),
+                                  );
+                                  setState(() {
+                                    _isLoading = false;
+                                  });
+                                }
                               }
                             }
                           },

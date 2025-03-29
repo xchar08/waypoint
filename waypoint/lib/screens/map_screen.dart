@@ -39,8 +39,9 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       vsync: this,
     )..repeat(reverse: true);
     _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
-    _loadFriendsList(); // Load friends list asynchronously
-    _showTour(); // Show tour asynchronously
+
+    _loadFriendsList();
+    _showTour();
   }
 
   Future<void> _loadFriendsList() async {
@@ -127,7 +128,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       );
     } catch (e) {
       print('Error showing tour: $e');
-      // Optionally show a SnackBar or ignore silently
     }
   }
 
@@ -154,7 +154,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       ),
       body: Column(
         children: [
-          // Search Bar and Filters
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Column(
@@ -203,7 +202,6 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
               ],
             ),
           ),
-          // Map
           Expanded(
             child: Stack(
               children: [
@@ -214,6 +212,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                     onTap: (tapPosition, point) {
                       setState(() {
                         _selectedLocation = point;
+                        print('Tapped location: $point');
                       });
                     },
                   ),
@@ -221,6 +220,24 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                     TileLayer(
                       urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                       subdomains: const ['a', 'b', 'c'],
+                      tileProvider: NetworkTileProvider(), // Use default network provider
+                      errorTileCallback: (tile, error, stackTrace) {
+                        print('Tile failed to load: $error');
+                      },
+                    ),
+                    const MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(32.7357, -97.1081),
+                          width: 40,
+                          height: 40,
+                          child: Icon(
+                            Icons.location_pin,
+                            color: Colors.red,
+                            size: 40,
+                          ),
+                        ),
+                      ],
                     ),
                     StreamBuilder<List<EventModel>>(
                       stream: _eventService.getEvents(),
@@ -229,6 +246,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           return const Center(child: CircularProgressIndicator());
                         }
                         if (snapshot.hasError) {
+                          print('StreamBuilder error: ${snapshot.error}');
                           return Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -236,7 +254,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                                 Text('Failed to load events: ${snapshot.error}'),
                                 const SizedBox(height: 16),
                                 ElevatedButton(
-                                  onPressed: () => setState(() {}), // Retry by rebuilding
+                                  onPressed: () => setState(() {}),
                                   child: const Text('Retry'),
                                 ),
                               ],
@@ -244,7 +262,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           );
                         }
                         final events = snapshot.data ?? [];
-                        // Apply search and filters
+                        print('Loaded ${events.length} events');
                         final filteredEvents = events.where((event) {
                           final matchesSearch = _searchQuery.isEmpty ||
                               event.activity.toLowerCase().contains(_searchQuery);
