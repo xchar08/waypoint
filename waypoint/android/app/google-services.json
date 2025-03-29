@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "210433876528",
+    "project_id": "waypoint-dc65c",
+    "storage_bucket": "waypoint-dc65c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:210433876528:android:5a098e3acc06df364643f5",
+        "android_client_info": {
+          "package_name": "com.example.waypoint"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAI1J1YyOyMPhW4kSrE71T7jDf2AwjeoQE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
